@@ -1,0 +1,62 @@
+# ffmpeg - http://ffmpeg.org/download.html
+#
+# From https://trac.ffmpeg.org/wiki/CompilationGuide/Centos
+#
+# https://hub.docker.com/r/jrottenberg/ffmpeg/
+#
+#
+FROM    centos:8 AS base
+
+RUN     dnf -y install libgomp && \
+        dnf clean all;
+
+
+FROM        base AS build
+
+WORKDIR     /tmp/workdir
+
+ENV         %%ENV%%
+
+RUN     buildDeps="autoconf \
+                   automake \
+                   bzip2 \
+                   cmake \
+                   diffutils \
+                   expat-devel \
+                   gcc \
+                   gcc-c++ \
+                   git \
+                   gperf \
+                   libtool \
+                   make \
+                   nasm \
+                   perl \
+                   python3 \
+                   openssl-devel \
+                   tar \
+                   yasm \
+                   which \
+                   zlib-devel" && \
+        echo "${SRC}/lib" > /etc/ld.so.conf.d/libc.conf && \
+        dnf --enablerepo=extras install -y epel-release && \
+        dnf --enablerepo=PowerTools install -y ${buildDeps} && \
+        alternatives --set python /usr/bin/python3
+%%RUN%%
+RUN \
+        ldd ${PREFIX}/bin/ffmpeg | grep opt/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} /usr/local/lib64/ && \
+        cp ${PREFIX}/bin/* /usr/local/bin/ && \
+        cp -r ${PREFIX}/share/ffmpeg /usr/local/share/ && \
+        LD_LIBRARY_PATH=/usr/local/lib64 ffmpeg -buildconf
+
+FROM        base
+MAINTAINER  Julien Rottenberg <julien@rottenberg.info>
+
+ENV         LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:/usr/lib64:/usr/lib:/lib64:/lib
+
+CMD         ["--help"]
+ENTRYPOINT  ["ffmpeg"]
+
+COPY --from=build /usr/local/ /usr/local/
+
+# Let's make sure the app built correctly
+# Convenient to verify on https://hub.docker.com/r/jrottenberg/ffmpeg/builds/ console output
